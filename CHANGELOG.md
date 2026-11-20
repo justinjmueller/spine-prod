@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   supported; regenerate existing batch scripts to pick up the fix.
 - Balanced joint sampler overrides now survive both Singularity shell layers,
   avoiding the truncated `{name:` sampler name at runtime.
+- ANL array jobs request `-r y`, so Polaris no longer rejects them as
+  non-rerunnable arrays when the site applies `-r n` by default.
+- ANL jobs set `OPENBLAS_NUM_THREADS=1`. Loader and filter worker processes
+  otherwise each start one OpenBLAS thread per node core, exhausting thread
+  creation on Polaris.
 
 ### Changed
 - SBND pipelines now target S3DF and use historical SBND training batches as
