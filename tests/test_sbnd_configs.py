@@ -237,7 +237,7 @@ def test_one_pipeline_per_model_including_candidate():
         p.stem.removeprefix("model_")
         for p in (CONFIG / "model/sbnd/full_chain").glob("model_*.yaml")
     }
-    assert pipelines == models == set(MODEL_REVISIONS) | {"261029"}
+    assert pipelines == models == set(MODEL_REVISIONS) | {"261029", "261120_exotic"}
 
 
 @pytest.mark.parametrize("chain", BASELINE)

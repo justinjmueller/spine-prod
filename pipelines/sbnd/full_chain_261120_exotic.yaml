@@ -156,11 +156,14 @@ stages:
       grappa_shower: ${grappa_shower_weight}
       grappa_track: ${grappa_track_weight}
 
-  # Train interaction aggregation and six-class PID from scratch (no warm start).
+  # Train interaction aggregation and six-class PID (from scratch unless --warm-start).
   - name: train_grappa_inter
     depends_on: [cache_train_particle_graphs, cache_validation_particle_graphs]
     config: train/sbnd/grappa_inter/train_from_particle_cache_261120_exotic.yaml
     stage: train
+    # Namespace map only: weights load solely when launched with --warm-start
+    warm_start:
+      grappa: grappa_inter
     profile: anl_polaris_capacity_full
     source: ${workspace}/cache/train.spine-cache
     val_source: ${workspace}/cache/validation.spine-cache
