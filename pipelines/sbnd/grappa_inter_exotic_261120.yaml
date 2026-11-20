@@ -1,0 +1,213 @@
+# Six-class (kaon) interaction GrapPA for SBND exotics reconstruction, with
+# track-track edges extended to 250 cm. Supply its destination with CLI
+# --workspace.
+#
+# Every upstream module was transfer-trained outside spine-prod (exotics Gen2):
+# deghosting, UResNet-PPN and Graph-SPICE share one frozen checkpoint, and
+# GrapPA shower/track were trained separately on top of it. No stage here
+# trains those modules; their outputs are materialized into a cache, and only
+# grappa_inter is trained, from scratch.
+
+workspace: null
+
+variables:
+  train_source_list: /lus/eagle/projects/neutrinoGPU/jmueller/spine_train/datasets/v10_14_02/mixed/train/files.txt
+  validation_source_list: /lus/eagle/projects/neutrinoGPU/jmueller/spine_train/datasets/v10_14_02/mixed/test/files.txt
+  filter_cache_dir: ${workspace}/filter/counts
+  exotics_weights: /lus/eagle/projects/neutrinoGPU/aliciavr/SPINE/exotics-training/Gen2/weights
+  upstream_weight: ${exotics_weights}/transfer_graph_spice/snapshot-92999.ckpt
+  # TODO: set to the selected GrapPA shower/track snapshots
+  grappa_shower_weight: ${exotics_weights}/transfer_grappa_shower/snapshot-REPLACE.ckpt
+  grappa_track_weight: ${exotics_weights}/transfer_grappa_track/snapshot-REPLACE.ckpt
+
+collections:
+  splits:
+    - name: train
+      source_list: ${train_source_list}
+      cache_tasks: 4
+      cache_dir: ${workspace}/cache/train
+      cache_repository: ${workspace}/cache/train.spine-cache
+      entry_filter: ${workspace}/filter/train/accepted.yaml
+      filtered_source_list: ${workspace}/filter/train/accepted_files.txt
+    - name: validation
+      source_list: ${validation_source_list}
+      cache_tasks: 1
+      cache_dir: ${workspace}/cache/validation
+      cache_repository: ${workspace}/cache/validation.spine-cache
+      entry_filter: ${workspace}/filter/validation/accepted.yaml
+      filtered_source_list: ${workspace}/filter/validation/accepted_files.txt
+
+defaults:
+  profile: anl_polaris_capacity
+  time: "06:00:00"
+
+stages:
+  # Measure raw product sizes once per source, reusing compatible scan records.
+  - name: scan_${split.name}_filter
+    time: "00:30:00"
+    for_each:
+      collection: splits
+      as: split
+    kind: filter
+    operation: scan
+    config: filter/sbnd/space_points_261029.yaml
+    source_list: ${split.source_list}
+    cache_dir: ${filter_cache_dir}
+    run_dir: ${workspace}/filter/${split.name}/scan
+    profile: anl_polaris_cpu
+    cpus_per_task: 16
+    workers: 16
+
+  # Build file-aware manifests accepting events with fewer than 500k points.
+  - name: build_${split.name}_filter
+    time: "00:10:00"
+    for_each:
+      collection: splits
+      as: split
+    kind: filter
+    operation: build
+    depends_on: ["scan_${split.name}_filter"]
+    config: filter/sbnd/space_points_261029.yaml
+    source_list: ${split.source_list}
+    cache_dir: ${filter_cache_dir}
+    output: ${split.entry_filter}
+    output_source_list: ${split.filtered_source_list}
+    run_dir: ${workspace}/filter/${split.name}/build
+    profile: anl_polaris_cpu
+
+  # Materialize calibrated deghosted data with the frozen exotics deghoster.
+  - name: cache_${split.name}_deghosting
+    for_each:
+      collection: splits
+      as: split
+    depends_on: ["build_${split.name}_filter"]
+    config: cache/sbnd/uresnet_deghost/deghosting_261120_exotic.yaml
+    source_list: ${split.source_list}
+    entry_filter: ${split.entry_filter}
+    run_dir: ${split.cache_dir}/deghosting
+    output: ${split.cache_repository}
+    cache_repository: ${split.cache_repository}
+    cache_stage: deghosting
+    ntasks: ${split.cache_tasks}
+    module_weight:
+      uresnet_deghost: ${upstream_weight}
+
+  # Append segmentation predictions and MPV-only adapted cluster labels.
+  - name: cache_${split.name}_segmentation
+    for_each:
+      collection: splits
+      as: split
+    depends_on: ["cache_${split.name}_deghosting"]
+    config: cache/sbnd/uresnet_ppn/segmentation_261120_exotic.yaml
+    run_dir: ${split.cache_dir}/segmentation
+    in_place: true
+    cache_repository: ${split.cache_repository}
+    cache_stage: segmentation
+    sources:
+      primary:
+        source_list: ${split.source_list}
+      cache:
+        source: ${split.cache_repository}
+    entry_filter: ${split.entry_filter}
+    ntasks: ${split.cache_tasks}
+    module_weight:
+      uresnet_ppn: ${upstream_weight}
+
+  # Append Graph-SPICE fragments.
+  - name: cache_${split.name}_fragment_graphs
+    for_each:
+      collection: splits
+      as: split
+    depends_on: ["cache_${split.name}_segmentation"]
+    config: cache/sbnd/graph_spice/fragment_graphs_261120_exotic.yaml
+    run_dir: ${split.cache_dir}/fragmentation
+    in_place: true
+    cache_repository: ${split.cache_repository}
+    cache_stage: fragmentation
+    sources:
+      primary:
+        source_list: ${split.source_list}
+      cache:
+        source: ${split.cache_repository}
+    entry_filter: ${split.entry_filter}
+    ntasks: ${split.cache_tasks}
+    module_weight:
+      graph_spice: ${upstream_weight}
+
+  # Append six-class particle graphs built from the exotics GrapPA shower/track.
+  - name: cache_${split.name}_particle_graphs
+    for_each:
+      collection: splits
+      as: split
+    depends_on: ["cache_${split.name}_fragment_graphs"]
+    config: cache/sbnd/grappa_shower_track/particle_graphs_261120_exotic.yaml
+    run_dir: ${split.cache_dir}/particle_aggregation
+    in_place: true
+    cache_repository: ${split.cache_repository}
+    cache_stage: particle_aggregation
+    sources:
+      primary:
+        source_list: ${split.source_list}
+      cache:
+        source: ${split.cache_repository}
+    entry_filter: ${split.entry_filter}
+    ntasks: ${split.cache_tasks}
+    module_weight:
+      grappa_shower: ${grappa_shower_weight}
+      grappa_track: ${grappa_track_weight}
+
+  # Train interaction aggregation and six-class PID from scratch (no warm start).
+  - name: train_grappa_inter
+    depends_on: [cache_train_particle_graphs, cache_validation_particle_graphs]
+    config: train/sbnd/grappa_inter/train_from_particle_cache_261120_exotic.yaml
+    stage: train
+    profile: anl_polaris_capacity_full
+    source: ${workspace}/cache/train.spine-cache
+    val_source: ${workspace}/cache/validation.spine-cache
+    val_entry_fraction_range: [0.0, 0.5]
+    run_dir: ${workspace}/train/grappa_inter
+    tensorboard: true
+
+  # Export the exotics upstream modules with the new interaction GrapPA.
+  - name: export_full_chain_weights
+    depends_on: [train_grappa_inter]
+    config: model/sbnd/full_chain/model_261120_exotic.yaml
+    profile: anl_polaris_cpu
+    time: "00:30:00"
+    run_dir: ${workspace}/weights/export
+    export_weights: ${workspace}/weights/full_chain_261120_exotic.ckpt
+    module_weight:
+      uresnet_deghost: ${upstream_weight}
+      uresnet_ppn: ${upstream_weight}
+      graph_spice: ${upstream_weight}
+      grappa_shower: ${grappa_shower_weight}
+      grappa_track: ${grappa_track_weight}
+      grappa_inter: ${workspace}/train/grappa_inter/weights/snapshot-best.ckpt
+
+  # Evaluate held-out events with the assembled full-chain checkpoint.
+  - name: evaluate_full_chain
+    depends_on: [export_full_chain_weights]
+    config: test/sbnd/full_chain/evaluate_261120_exotic.yaml
+    time: "04:00:00"
+    source_list: ${validation_source_list}
+    entry_fraction_range: [0.5, 1.0]
+    run_dir: ${workspace}/metrics/full_chain/raw
+    in_place: true
+    weight_path: ${workspace}/weights/full_chain_261120_exotic.ckpt
+    num_workers: 8
+    ntasks: 4
+
+  # Reduce completed metric shards into checksummed JSON and plots.
+  - name: report_full_chain
+    kind: report
+    depends_on: [evaluate_full_chain]
+    config: test/sbnd/full_chain/report_261029.yaml
+    input_dir: ${workspace}/metrics/full_chain/raw/latest
+    output_dir: ${workspace}/metrics/full_chain/report/artifacts
+    run_dir: ${workspace}/metrics/full_chain/report
+    checkpoint: ${workspace}/weights/full_chain_261120_exotic.ckpt
+    dataset: ${validation_source_list}
+    dataset_selection:
+      entry_fraction_range: [0.5, 1.0]
+    profile: anl_polaris_cpu
+    time: "00:30:00"

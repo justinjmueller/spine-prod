@@ -1,0 +1,8 @@
+__meta__:
+  kind: fragment
+  version: "261120"
+  date: "2026-11-20"
+  description: SBND 261029 chain with six-class PID and longer track-track edges
+include: model/sbnd/full_chain/model_261029.yaml
+override:
+  model.modules.grappa_inter: !include "model/sbnd/grappa_inter/network_full_chain_261120_exotic.yaml"

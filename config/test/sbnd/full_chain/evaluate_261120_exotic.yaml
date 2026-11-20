@@ -1,0 +1,8 @@
+__meta__:
+  kind: bundle
+  version: "261120"
+  date: "2026-11-20"
+  description: SBND six-class PID full-chain evaluation
+include: test/sbnd/full_chain/evaluate_261029.yaml
+override:
+  model.modules.grappa_inter: !include "model/sbnd/grappa_inter/network_full_chain_261120_exotic.yaml"

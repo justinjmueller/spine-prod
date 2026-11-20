@@ -1,0 +1,9 @@
+__meta__:
+  kind: bundle
+  version: "261120"
+  date: "2026-11-20"
+  description: SBND grappa_inter six-class PID training from exotic particle graphs
+include: train/sbnd/grappa_inter/train_from_particle_cache_261029.yaml
+override:
+  # Graph construction is fixed by the cache; only the prediction head changes
+  model.modules.grappa.gnn_model.node_pred.type: 6

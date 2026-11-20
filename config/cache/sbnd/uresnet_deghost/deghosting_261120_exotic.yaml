@@ -1,0 +1,9 @@
+__meta__:
+  kind: bundle
+  version: "261120"
+  date: "2026-11-20"
+  description: SBND deghosting cache from the exotics full-chain checkpoint
+include: cache/sbnd/uresnet_deghost/deghosting_261029.yaml
+override:
+  # Exotics weights come from full-chain training, so keys carry the module prefix
+  model.modules.uresnet_deghost.model_name: uresnet_deghost

@@ -1,0 +1,13 @@
+__meta__:
+  kind: fragment
+  version: "261120"
+  date: "2026-11-20"
+  description: SBND grappa_inter full-chain network with kaon class and longer track-track edges
+
+include: model/sbnd/grappa_inter/network_full_chain_260304.yaml
+
+override:
+  # Index 4 is the track-track pair; extended from 25 to 250 cm
+  graph.max_length: [500, 500, 0, 0, 250, 25, 25, 0, 0, 0]
+  # Photon, electron, muon, pion, proton + kaon
+  gnn_model.node_pred.type: 6

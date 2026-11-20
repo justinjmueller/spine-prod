@@ -1,0 +1,9 @@
+__meta__:
+  kind: bundle
+  version: "261120"
+  date: "2026-11-20"
+  description: SBND fragment_graphs cache from the exotics full-chain checkpoint
+include: cache/sbnd/graph_spice/fragment_graphs_261029.yaml
+override:
+  # Exotics weights come from full-chain training, so keys carry the module prefix
+  model.modules.graph_spice.model_name: graph_spice

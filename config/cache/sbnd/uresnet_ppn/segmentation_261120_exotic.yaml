@@ -1,0 +1,10 @@
+__meta__:
+  kind: bundle
+  version: "261120"
+  date: "2026-11-20"
+  description: SBND segmentation cache from the exotics full-chain checkpoint
+# MPV-only cluster labels (type/primary include flags false) are inherited from 261029
+include: cache/sbnd/uresnet_ppn/segmentation_261029.yaml
+override:
+  # Exotics weights come from full-chain training, so keys carry the module prefix
+  model.modules.uresnet_ppn.model_name: uresnet_ppn

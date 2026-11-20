@@ -1,0 +1,13 @@
+__meta__:
+  kind: bundle
+  version: "261120"
+  date: "2026-11-20"
+  description: SBND particle graphs with six-class PID targets and longer track-track edges
+include: cache/sbnd/grappa_shower_track/particle_graphs_261029.yaml
+override:
+  # Graph construction and cached PID validity both follow this network:
+  # labels >= node_pred.type are cached as invalid, so it must be 6 here too
+  model.modules.grappa_inter: !include "model/sbnd/grappa_inter/network_full_chain_261120_exotic.yaml"
+  # Exotics weights come from full-chain training, so keys carry the module prefix
+  model.modules.grappa_shower.model_name: grappa_shower
+  model.modules.grappa_track.model_name: grappa_track
