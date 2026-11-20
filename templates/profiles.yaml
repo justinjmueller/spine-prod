@@ -319,6 +319,7 @@ profiles:
 
   anl_polaris_cpu:
     allocation_role: cpu
+    description: "CPU processing on ANL Polaris"
     site: anl
     scheduler: pbs
     template: job_template_anl.pbs
