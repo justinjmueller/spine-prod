@@ -106,6 +106,30 @@ class BatchRunner(SubmissionComponent):
         )
 
     @staticmethod
+    def resolve_tasks_per_node(profile_config: Dict, stage: str) -> int:
+        """Resolve how many independent tasks share one node allocation.
+
+        Packing runs one single-GPU inference task per GPU of a whole-node
+        allocation, for sites that cannot schedule partial nodes. Each task is
+        exactly one array task: it owns its inputs, logs and cache publication.
+        """
+        value = profile_config.get("tasks_per_node")
+        if value is None or value == 1:
+            return 1
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError("tasks_per_node must be a positive integer")
+        if stage != "inference":
+            raise ValueError(
+                "tasks_per_node packs independent inference tasks; "
+                f"{stage} jobs need a profile without it"
+            )
+        if profile_config.get("site", "s3df") not in ("anl", "polaris"):
+            raise ValueError("tasks_per_node is only supported by ANL profiles")
+        if value != int(profile_config.get("gpus_per_node", 0)):
+            raise ValueError("tasks_per_node must equal gpus_per_node")
+        return value
+
+    @staticmethod
     def resolve_files_per_task(
         num_files: int,
         ntasks: Optional[int] = None,
@@ -631,7 +655,19 @@ class BatchRunner(SubmissionComponent):
             )
 
         validate_allocation(self.profiles, profile_config)
-        world_size = self.context.spine_cli.align_world_size(profile_config, world_size)
+        tasks_per_node = self.resolve_tasks_per_node(profile_config, stage)
+        if tasks_per_node > 1:
+            # Every packed task is a separate single-GPU SPINE process
+            if world_size not in (None, 1):
+                raise ValueError(
+                    f"--world-size {world_size} conflicts with tasks_per_node; "
+                    "packed tasks use one GPU each"
+                )
+            world_size = 1
+        else:
+            world_size = self.context.spine_cli.align_world_size(
+                profile_config, world_size
+            )
         spine_runtime_options = self.context.spine_cli.format_runtime_options(
             world_size,
             batch_size,
@@ -1069,7 +1105,19 @@ class BatchRunner(SubmissionComponent):
             task_output_manifest = None
 
             array_spec = None
-            if len(chunk) > 1:
+            packed_tasks = None
+            if tasks_per_node > 1 and has_array:
+                # One node job runs up to tasks_per_node tasks; only extra
+                # nodes become array entries.
+                packed_tasks = min(tasks_per_node, len(chunk))
+                node_jobs = math.ceil(len(chunk) / tasks_per_node)
+                if node_jobs > 1:
+                    array_spec = f"1-{node_jobs}"
+                    if concurrent_task_limit is not None:
+                        node_limit = math.ceil(concurrent_task_limit / tasks_per_node)
+                        if node_limit < node_jobs:
+                            array_spec += f"%{node_limit}"
+            elif len(chunk) > 1:
                 array_spec = f"1-{len(chunk)}"
                 if concurrent_task_limit is not None and concurrent_task_limit < len(
                     chunk
@@ -1218,6 +1266,8 @@ class BatchRunner(SubmissionComponent):
                 continuation_run_dir=str(job_dir),
                 continuation_dir=continuation_dir,
                 array_spec=array_spec,
+                packed_tasks=packed_tasks,
+                packed_task_count=len(chunk),
                 job_name=(
                     continuation_attempt["token"]
                     if continuation_attempt

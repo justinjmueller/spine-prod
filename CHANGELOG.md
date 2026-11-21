@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- ANL profiles accept `tasks_per_node`, which runs independent single-GPU
+  inference tasks (e.g. cache shards) side by side on one node through
+  `mpiexec`, each with `world_size` 1. Polaris allocates whole nodes, so
+  single-GPU cache tasks otherwise leave three GPUs idle, and caches cannot use
+  `world_size > 1`. New `anl_polaris_capacity_packed` and
+  `anl_polaris_debug_packed` profiles pack four tasks per node; tasks beyond one
+  node become array entries of packed node jobs. Training rejects packing.
 - Pipeline launches now accept `--source-list` and `--val-source-list` to
   override declared train/validation source-list variables across all stages.
 - Added SBND canonical models and staged training/cache/evaluation/reporting

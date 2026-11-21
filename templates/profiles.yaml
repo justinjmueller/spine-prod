@@ -317,6 +317,51 @@ profiles:
     bind_paths: null
     description: "Full-node GPU processing in the ANL Polaris debug queue"
 
+  # Polaris allocates whole nodes. Packed profiles run up to four independent
+  # single-GPU inference tasks (e.g. cache shards) per node through mpiexec,
+  # each with world_size 1, instead of leaving three GPUs idle per task.
+  anl_polaris_capacity_packed:
+    gpu_type: a100
+    gpu_mem: 40g
+    allocation_role: single_gpu
+    site: anl
+    scheduler: pbs
+    template: job_template_anl.pbs
+    account: "14453"
+    queue: capacity
+    system: polaris
+    nodes: 1
+    place: scatter:excl
+    gpus_per_node: 4
+    tasks_per_node: 4
+    cpus_per_node: 64
+    cpus_per_task: 64
+    filesystems: home:grand:eagle
+    time: "2:00:00"
+    bind_paths: null
+    description: "Four single-GPU tasks per node in the ANL Polaris capacity queue"
+
+  anl_polaris_debug_packed:
+    gpu_type: a100
+    gpu_mem: 40g
+    allocation_role: single_gpu
+    site: anl
+    scheduler: pbs
+    template: job_template_anl.pbs
+    account: "14453"
+    queue: debug
+    system: polaris
+    nodes: 1
+    place: scatter:excl
+    gpus_per_node: 4
+    tasks_per_node: 4
+    cpus_per_node: 64
+    cpus_per_task: 64
+    filesystems: home:grand:eagle
+    time: "1:00:00"
+    bind_paths: null
+    description: "Four single-GPU tasks per node in the ANL Polaris debug queue"
+
   anl_polaris_cpu:
     allocation_role: cpu
     description: "CPU processing on ANL Polaris"

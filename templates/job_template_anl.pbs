@@ -37,6 +37,41 @@
 #PBS -W depend={{ dependency }}
 {% endif %}
 
+{% if packed_tasks %}
+if [[ -z "${SPINE_PROD_PACKED_RANK:-}" ]]; then
+    # Whole-node allocation: relaunch this script once per GPU. Each rank is an
+    # independent single-GPU task; mpiexec only starts them and collects exits.
+    echo "=================================="
+    echo "{{ command_label|default('SPINE Production Job') }} (ANL/Polaris, {{ packed_tasks }} tasks per node)"
+    echo "=================================="
+    echo "Job ID: $PBS_JOBID"
+{% if array_spec %}
+    echo "Array Index: $PBS_ARRAY_INDEX"
+{% endif %}
+    echo "Started: $(date)"
+    echo "Task logs: {{ task_dir_pattern }}/stdout.log and stderr.log"
+    echo
+    SPINE_PROD_TASK_OFFSET=$(( (${PBS_ARRAY_INDEX:-1} - 1) * {{ packed_tasks }} ))
+    mpiexec -n {{ packed_tasks }} --ppn {{ packed_tasks }} --cpu-bind none \
+        env SPINE_PROD_PACKED_RANK=1 SPINE_PROD_TASK_OFFSET=$SPINE_PROD_TASK_OFFSET \
+        bash -l {{ script_path|tojson }}
+    EXIT_STATUS=$?
+    echo "Finished: $(date)"
+    echo "Exit status: $EXIT_STATUS"
+    exit $EXIT_STATUS
+fi
+
+# Packed rank: select this rank's task and GPU, and log to the task directory
+SPINE_PROD_TASK_INDEX=$(( SPINE_PROD_TASK_OFFSET + PALS_LOCAL_RANKID + 1 ))
+if (( SPINE_PROD_TASK_INDEX > {{ packed_task_count }} )); then
+    exit 0
+fi
+export CUDA_VISIBLE_DEVICES=$PALS_LOCAL_RANKID
+TASK_DIR="{{ task_dir_pattern | replace('*', '${SPINE_PROD_TASK_INDEX}') }}"
+exec >"$TASK_DIR/stdout.log" 2>"$TASK_DIR/stderr.log"
+echo "Packed task $SPINE_PROD_TASK_INDEX on GPU $CUDA_VISIBLE_DEVICES"
+
+{% endif %}
 echo "=================================="
 echo "{{ command_label|default('SPINE Production Job') }} (ANL/Polaris)"
 echo "=================================="
@@ -65,7 +100,10 @@ if [ -z ${SPINE_PROD_BASEDIR+x} ]; then
     source {{ basedir }}/configure.sh
 fi
 
-{% if file_list_pattern and array_spec %}
+{% if file_list_pattern and packed_tasks %}
+# Packed rank: TASK_DIR was selected at launch
+TASK_FILE_LIST="{{ file_list_pattern | replace('*', '${SPINE_PROD_TASK_INDEX}') }}"
+{% elif file_list_pattern and array_spec %}
 # Get file list for this array task
 TASK_DIR="{{ task_dir_pattern | replace('*', '${PBS_ARRAY_INDEX}') }}"
 TASK_FILE_LIST="{{ file_list_pattern | replace('*', '${PBS_ARRAY_INDEX}') }}"

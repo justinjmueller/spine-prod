@@ -21,7 +21,9 @@ def render_script(
     num_chunks : int
         Number of scheduler jobs planned for this submission.
     **context
-        Fully resolved template arguments, including resource overrides.
+        Fully resolved template arguments, including resource overrides. The
+        script's own path is added as ``script_path`` so packed jobs can
+        relaunch it once per task.
 
     Returns
     -------
@@ -29,9 +31,9 @@ def render_script(
         Written script, ready to pass to the scheduler client.
     """
     template = client.load_template(template_name)
-    content = template.render(**context)
     name = "submit" if num_chunks == 1 else f"submit_{chunk_index:03d}"
     path = Path(attempt_dir) / f"{name}{client.script_suffix}"
+    content = template.render(script_path=str(path), **context)
     path.write_text(content, encoding="utf-8")
     path.chmod(0o755)
     return path

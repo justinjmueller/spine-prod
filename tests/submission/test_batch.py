@@ -3081,6 +3081,136 @@ class TestCVMFSOption:
         assert "apptainer exec" in script
         assert "spine -S" in script
 
+    def _submit_packed_cache(self, mock_submitter, tmp_path, ntasks, **kwargs):
+        """Submit an in-place cache stage with a packed Polaris profile."""
+        run_dir = tmp_path / "run"
+        paths = [tmp_path / f"input_{index}.root" for index in range(ntasks)]
+        for path in paths:
+            path.touch()
+        manifest = tmp_path / "primary.txt"
+        manifest.write_text("\n".join(map(str, paths)), encoding="utf-8")
+        cache = tmp_path / "cache.spine-cache"
+        cache.mkdir()
+        with (
+            patch.object(
+                mock_submitter.batch,
+                "get_batch_client",
+                return_value=mock_submitter.batch_client,
+            ),
+            patch.object(mock_submitter.batch_client, "submit", return_value="1.pbs"),
+        ):
+            mock_submitter.submit_job(
+                config="cache/generic/graph_spice/fragment_graphs_240805.yaml",
+                profile="anl_polaris_capacity_packed",
+                named_sources={
+                    "primary": {"source_list": str(manifest)},
+                    "cache": {"source": str(cache)},
+                },
+                run_dir=str(run_dir),
+                in_place=True,
+                ntasks=ntasks,
+                **kwargs,
+            )
+        attempt = (run_dir / "latest").resolve()
+        script_path = attempt / "submit.sh"
+        if not script_path.exists():
+            script_path = next(attempt.glob("submit*"))
+        return attempt, script_path, script_path.read_text(encoding="utf-8")
+
+    def test_packed_anl_tasks_share_one_node_job(self, mock_submitter, tmp_path):
+        """Four single-GPU tasks run as mpiexec ranks of one node job."""
+        attempt, script_path, script = self._submit_packed_cache(
+            mock_submitter, tmp_path, ntasks=4
+        )
+
+        assert "#PBS -J" not in script
+        assert "ngpus=4" in script
+        assert "mpiexec -n 4 --ppn 4 --cpu-bind none" in script
+        assert f"bash -l {json.dumps(str(script_path))}" in script
+        assert "--world-size 1" in script
+        assert "--world-size 4" not in script
+        assert "--source-list primary=$TASK_DIR/primary.txt" in script
+        for index in range(1, 5):
+            assert (attempt / "tasks" / f"000_{index}" / "primary.txt").exists()
+
+    def test_packed_anl_extra_tasks_use_node_arrays(self, mock_submitter, tmp_path):
+        """Tasks beyond one node become array entries of packed node jobs."""
+        _, _, script = self._submit_packed_cache(mock_submitter, tmp_path, ntasks=6)
+
+        assert "#PBS -J 1-2" in script
+        assert "#PBS -r y" in script
+        assert "mpiexec -n 4 --ppn 4" in script
+
+    def test_packed_anl_launcher_and_ranks_select_tasks(self, mock_submitter, tmp_path):
+        """The launcher offsets array entries; ranks pick a task and GPU."""
+        attempt, script_path, script = self._submit_packed_cache(
+            mock_submitter, tmp_path, ntasks=6
+        )
+        env = {"PATH": os.environ["PATH"], "PBS_ARRAY_INDEX": "2"}
+        launcher = subprocess.run(
+            [
+                "bash",
+                "-c",
+                'mpiexec() { printf "%s\\n" "$@"; }; export -f mpiexec; bash "$0"',
+                str(script_path),
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert "SPINE_PROD_TASK_OFFSET=4" in launcher.stdout.splitlines()
+        assert "Exit status: 0" in launcher.stdout
+
+        # Run only the rank prologue: task selection, GPU pinning and logging
+        lines = script.splitlines()
+        start = lines.index(
+            "# Packed rank: select this rank's task and GPU, and log to the task directory"
+        )
+        stop = next(
+            index for index, line in enumerate(lines) if line.startswith('echo "Packed')
+        )
+        prologue = "\n".join(lines[start : stop + 1])
+        probe = prologue + '\necho "$TASK_DIR $CUDA_VISIBLE_DEVICES"'
+        for rank, expected in ((0, "000_5"), (1, "000_6")):
+            subprocess.run(
+                ["bash", "-c", probe],
+                env=dict(env, SPINE_PROD_TASK_OFFSET="4", PALS_LOCAL_RANKID=str(rank)),
+                check=True,
+            )
+            log = (attempt / "tasks" / expected / "stdout.log").read_text()
+            assert log.splitlines() == [
+                f"Packed task {4 + rank + 1} on GPU {rank}",
+                f"{attempt / 'tasks' / expected} {rank}",
+            ]
+        # Ranks beyond the last task exit cleanly without touching anything
+        idle = subprocess.run(
+            ["bash", "-c", probe],
+            env=dict(env, SPINE_PROD_TASK_OFFSET="4", PALS_LOCAL_RANKID="2"),
+            capture_output=True,
+            text=True,
+        )
+        assert idle.returncode == 0
+        assert idle.stdout == ""
+
+    def test_packed_anl_profiles_reject_training(self, mock_submitter, tmp_path):
+        """Training keeps SPINE's distributed mode on full-node profiles."""
+        with pytest.raises(ValueError, match="packs independent inference tasks"):
+            mock_submitter.submit_job(
+                config="train/generic/uresnet/train_240718.yaml",
+                stage="train",
+                run_dir=str(tmp_path / "train"),
+                profile="anl_polaris_capacity_packed",
+                dry_run=True,
+            )
+
+    def test_packed_anl_profiles_reject_multi_gpu_world_size(
+        self, mock_submitter, tmp_path
+    ):
+        """Packed tasks are single-GPU processes."""
+        with pytest.raises(ValueError, match="conflicts with tasks_per_node"):
+            self._submit_packed_cache(mock_submitter, tmp_path, ntasks=4, world_size=4)
+
     def test_anl_uses_native_pbs_dependency_deletion_semantics(self, mock_submitter):
         """PBS needs only afterok; it has no Slurm-style opt-in directive."""
         script = self._render_template(
