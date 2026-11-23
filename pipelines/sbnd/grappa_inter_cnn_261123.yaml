@@ -6,7 +6,8 @@
 # graphs and features live; nothing is cached. Precomputed particle-graph
 # features bypass the encoders, so they cannot train a CNN. The two variants
 # differ only in their node/edge encoders and the GNN input widths, so the
-# comparison is one-to-one. This first revision checks that the CNN model runs
+# comparison is one-to-one. Both train PID, primary and edge grouping without
+# orientation, which needs encoder start/end points that CNNs do not produce. This first revision checks that the CNN model runs
 # and measures its loading/model cost before caching static inputs for
 # hyper-parameter scans.
 

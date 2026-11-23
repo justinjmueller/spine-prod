@@ -12,8 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pipelines/sbnd/grappa_inter_cnn_261123.yaml`: standalone truth-group training
   from scratch with sparse residual CNN node/edge encoders and lattice-phase
   augmentation (`model_261123_cnn`), next to its geometric-feature reference
-  (`model_261029`) on identical filtered events. Only the encoders and GNN input
-  widths differ. Training uses three loader workers per rank to stay within the
+  (`model_261123_geo`) on identical filtered events. Only the encoders and GNN
+  input widths differ. Both drop orientation, which classifies encoder
+  start/end points that CNN encoders do not produce. Training uses three loader workers per rank to stay within the
   Polaris 4096-thread per-user limit.
 - ANL profiles accept `tasks_per_node`, which runs independent single-GPU
   inference tasks (e.g. cache shards) side by side on one node through

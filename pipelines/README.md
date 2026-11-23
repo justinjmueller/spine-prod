@@ -651,7 +651,7 @@ model revision. It trains standalone interaction GrapPA from labeled LArCV voxel
 
 | Stage | Config | Node/edge encoders | GNN inputs |
 | --- | --- | --- | ---: |
-| `train_grappa_inter_geo` | `train_261123_geo` (`model_261029`) | geometric features | 33 / 19 |
+| `train_grappa_inter_geo` | `train_261123_geo` (`model_261123_geo`) | geometric features | 33 / 19 |
 | `train_grappa_inter_cnn` | `train_261123_cnn` (`model_261123_cnn`) | sparse residual CNN | 64 / 64 |
 
 The CNN encoder (`encoder_cnn_261123`) follows arXiv:2007.01335 (sec. III.2),
@@ -659,7 +659,10 @@ shallower: 32 filters widening to 160 over depth 5, two residual blocks per
 level, average pooling and a 64-feature projection. `lattice.period: auto`
 draws an independent lattice phase per image and axis during training only.
 Everything else (graph, five PID classes, objectives, optimizer, early stopping)
-is the 261029 standalone recipe, so the comparison is one-to-one. Nothing is
+is the 261029 standalone recipe, so the comparison is one-to-one, with one
+exception applied to both variants: orientation is dropped. It classifies the
+node encoder's start/end points, which only the geometric encoder produces, so
+`model_261123_geo` is the 261029 model without the orientation head and loss. Nothing is
 cached: precomputed particle-graph features bypass the encoders. Loaders use
 three workers per rank because on-the-fly validation duplicates the loader and
 Polaris caps each user at 4096 threads per node.

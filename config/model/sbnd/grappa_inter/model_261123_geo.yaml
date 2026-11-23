@@ -1,0 +1,15 @@
+__meta__:
+  kind: fragment
+  version: "261123"
+  date: "2026-11-23"
+  description: SBND grappa_inter standalone geometric reference without orientation
+
+include: model/sbnd/grappa_inter/model_261029.yaml
+
+# Orientation classifies the node encoder's start/end points, which only the
+# geometric encoder (add_points) produces. Pure CNN encoders cannot supply them,
+# so the encoder study drops orientation from both variants to keep the
+# objectives identical: PID, primary and edge grouping.
+remove:
+  - model.modules.grappa.gnn_model.node_pred.orient
+  - model.modules.grappa_loss.node_loss.orient

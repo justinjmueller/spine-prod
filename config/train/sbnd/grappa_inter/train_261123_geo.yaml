@@ -5,7 +5,7 @@ __meta__:
   description: SBND standalone grappa_inter training from truth particle groups with geometric (human-engineered) encoders, the reference for the CNN study
 
 include:
-  - model/sbnd/grappa_inter/model_261029.yaml
+  - model/sbnd/grappa_inter/model_261123_geo.yaml
   - train/sbnd/grappa_inter/standalone_v1.yaml
 
 override:

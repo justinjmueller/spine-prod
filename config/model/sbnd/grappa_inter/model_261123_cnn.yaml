@@ -4,7 +4,8 @@ __meta__:
   date: "2026-11-23"
   description: SBND grappa_inter standalone model with CNN encoders
 
-include: model/sbnd/grappa_inter/model_261029.yaml
+# Shares the reference objectives (no orientation); only the network changes
+include: model/sbnd/grappa_inter/model_261123_geo.yaml
 
 override:
   model.modules.grappa: !include "model/sbnd/grappa_inter/network_261123_cnn.yaml"

@@ -13,3 +13,7 @@ override:
   edge_encoder: !include "model/sbnd/grappa_inter/encoder_cnn_261123.yaml"
   gnn_model.node_feats: 64
   gnn_model.edge_feats: 64
+
+# CNN encoders produce no start/end points for orientation (see model_261123_geo)
+remove:
+  - gnn_model.node_pred.orient
