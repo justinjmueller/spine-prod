@@ -9,6 +9,9 @@ include:
   - train/sbnd/grappa_inter/standalone_v1.yaml
 
 override:
+  # 16 events per GPU (64 on four): the edge CNN builds one image per particle
+  # pair, peaking at 24-30 GB per A100 in training; 128 overflows MinkowskiEngine
+  io.loader.minibatch_size: 16
   # Polaris caps each user at 4096 threads per node. The validation loader
   # copies io.loader, so 4 ranks x (1 + 2 x num_workers) processes share it
   io.loader.num_workers: 3

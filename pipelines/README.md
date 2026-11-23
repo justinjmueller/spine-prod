@@ -663,9 +663,12 @@ is the 261029 standalone recipe, so the comparison is one-to-one, with one
 exception applied to both variants: orientation is dropped. It classifies the
 node encoder's start/end points, which only the geometric encoder produces, so
 `model_261123_geo` is the 261029 model without the orientation head and loss. Nothing is
-cached: precomputed particle-graph features bypass the encoders. Loaders use
-three workers per rank because on-the-fly validation duplicates the loader and
-Polaris caps each user at 4096 threads per node.
+cached: precomputed particle-graph features bypass the encoders. Both variants train
+16 events per GPU (64 on a four-GPU node): the edge CNN encodes one image per
+particle pair, peaking at 24-30 GB per A100 at that size, and 128 per GPU
+overflows MinkowskiEngine. Loaders use three workers per rank because
+on-the-fly validation duplicates the loader and Polaris caps each user at 4096
+threads per node.
 
 The default lists are the Gen-II `v10_14_02` mixed sample on Polaris; override
 them with `--source-list`/`--val-source-list`. Event filters match the SBND

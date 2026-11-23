@@ -9,6 +9,8 @@ include:
   - train/sbnd/grappa_inter/standalone_v1.yaml
 
 override:
+  # Matches the CNN variant's 16 events per GPU so both train identically
+  io.loader.minibatch_size: 16
   # Polaris caps each user at 4096 threads per node. The validation loader
   # copies io.loader, so 4 ranks x (1 + 2 x num_workers) processes share it
   io.loader.num_workers: 3
