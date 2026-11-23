@@ -643,6 +643,35 @@ validation, optional warm starts, held-out evaluation, overall recall and
 training-aligned shower reporting. No candidate weights are published and
 production latest selection remains on `261019`.
 
+### SBND interaction GrapPA CNN encoder study (`261123`)
+
+`sbnd/grappa_inter_cnn_261123.yaml` is a component study, not a full-chain
+model revision. It trains standalone interaction GrapPA from labeled LArCV voxels
+(truth particle groups) twice, from scratch and on the same filtered events:
+
+| Stage | Config | Node/edge encoders | GNN inputs |
+| --- | --- | --- | ---: |
+| `train_grappa_inter_geo` | `train_261123_geo` (`model_261029`) | geometric features | 33 / 19 |
+| `train_grappa_inter_cnn` | `train_261123_cnn` (`model_261123_cnn`) | sparse residual CNN | 64 / 64 |
+
+The CNN encoder (`encoder_cnn_261123`) follows arXiv:2007.01335 (sec. III.2),
+shallower: 32 filters widening to 160 over depth 5, two residual blocks per
+level, average pooling and a 64-feature projection. `lattice.period: auto`
+draws an independent lattice phase per image and axis during training only.
+Everything else (graph, five PID classes, objectives, optimizer, early stopping)
+is the 261029 standalone recipe, so the comparison is one-to-one. Nothing is
+cached: precomputed particle-graph features bypass the encoders. Loaders use
+three workers per rank because on-the-fly validation duplicates the loader and
+Polaris caps each user at 4096 threads per node.
+
+The default lists are the Gen-II `v10_14_02` mixed sample on Polaris; override
+them with `--source-list`/`--val-source-list`. Event filters match the SBND
+pipelines; a workspace whose filters were built from the same lists can reuse
+`filter/<split>/accepted.yaml` and launch a single trainer with
+`--select-stage`. This first revision establishes that the CNN model trains and
+measures its loading/model cost before static inputs are cached for
+hyper-parameter scans.
+
 ### Launch SBND on S3DF
 
 Use the standard submit entry point with S3DF-local source lists:

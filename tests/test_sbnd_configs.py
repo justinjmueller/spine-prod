@@ -229,9 +229,10 @@ def test_standalone_components_preserve_released_networks_and_losses(version):
 
 
 def test_one_pipeline_per_model_including_candidate():
+    # Component studies (e.g. grappa_inter_cnn_<rev>) are not full-chain models
     pipelines = {
         p.stem.removeprefix("full_chain_")
-        for p in (ROOT / "pipelines/sbnd").glob("*.yaml")
+        for p in (ROOT / "pipelines/sbnd").glob("full_chain_*.yaml")
     }
     models = {
         p.stem.removeprefix("model_")

@@ -1,0 +1,8 @@
+__meta__:
+  kind: fragment
+  description: SBND interaction GrapPA training from labeled LArCV voxels (truth particle groups)
+
+include: train/common/grappa_inter/base_v1.yaml
+
+override:
+  io.loader.minibatch_size: 128

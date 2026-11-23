@@ -1,0 +1,28 @@
+__meta__:
+  kind: fragment
+  version: "261123"
+  date: "2026-11-23"
+  description: SBND interaction GrapPA sparse residual CNN encoder (node or edge images)
+
+# Paper-inspired design (arXiv:2007.01335, sec. III.2), shallower: 32 initial
+# filters widening linearly to 160, four stride-2 levels (depth 5) with two
+# residual blocks each, global average pooling and a 64-feature projection.
+# The input kernel is 5; residual and stride-2 kernels are fixed at 3 and 2.
+# No fixed terminal volume is imposed on variable-size SBND particle images.
+# lattice.period auto resolves to 2**(depth-1) = 16: an independent random phase
+# per image and axis during training, disabled during evaluation.
+provider: cnn
+data_dim: 3
+num_input: 1
+filters: 32
+depth: 5
+reps: 2
+input_kernel: 5
+feature_size: 64
+pool_mode: avg
+coord_conv: false
+activation: lrelu
+norm_layer: batch_norm
+allow_bias: false
+lattice:
+  period: auto

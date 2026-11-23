@@ -2323,6 +2323,10 @@ def test_all_training_pipelines_declare_full_chain_warm_start_namespaces():
         "train_grappa_shower": {"grappa": "grappa_shower"},
         "train_grappa_track": {"grappa": "grappa_track"},
         "train_grappa_inter": {"grappa": "grappa_inter"},
+        # Standalone encoder study: the geometric reference shares the
+        # full-chain network; learned CNN encoders have no full-chain source
+        "train_grappa_inter_geo": {"grappa": "grappa_inter"},
+        "train_grappa_inter_cnn": None,
     }
     pipeline_root = Path(__file__).parent.parent / "pipelines"
     training_pipeline_count = 0
@@ -2343,7 +2347,7 @@ def test_all_training_pipelines_declare_full_chain_warm_start_namespaces():
             ):
                 # Cached deghosted segmentation owns one UResNet-PPN full-chain module.
                 stage_expected = {"uresnet_ppn": "uresnet_ppn"}
-            assert stage["warm_start"] == stage_expected
+            assert stage.get("warm_start") == stage_expected
 
     assert training_pipeline_count > 0
 

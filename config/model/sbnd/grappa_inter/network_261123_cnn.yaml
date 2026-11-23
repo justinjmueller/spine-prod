@@ -1,0 +1,15 @@
+__meta__:
+  kind: fragment
+  version: "261123"
+  date: "2026-11-23"
+  description: SBND grappa_inter standalone network with sparse CNN node and edge encoders
+
+include: model/sbnd/grappa_inter/network_260304.yaml
+
+override:
+  # Learned encoders replace the geometric features; everything else is fixed
+  # to the 260304 network so CNN and geometric variants compare one-to-one
+  node_encoder: !include "model/sbnd/grappa_inter/encoder_cnn_261123.yaml"
+  edge_encoder: !include "model/sbnd/grappa_inter/encoder_cnn_261123.yaml"
+  gnn_model.node_feats: 64
+  gnn_model.edge_feats: 64
